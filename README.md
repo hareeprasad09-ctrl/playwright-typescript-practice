@@ -72,14 +72,110 @@ accidental `test.only`; local runs have no retries so failures remain visible.
 
 ## GitHub Actions
 
-Publish **the contents of this directory as the repository root**, including
-`.github/` and `package-lock.json`. The workflow runs on pushes, pull requests,
+The project is published at [hareeprasad09-ctrl/playwright-typescript-practice](https://github.com/hareeprasad09-ctrl/playwright-typescript-practice).
+The workflow runs on pushes, pull requests,
 and manual dispatch. It installs Chromium with Linux system dependencies, checks
 types, runs the full regression suite, and uploads reports for 14 days.
 The workflow is published and its first hosted run passed all 11 tests. This is
 continuous integration (CI); automatic deployment (CD) is not configured.
 
-## References
+## How to run this project in CI — and where it runs
+
+### Does it run in the cloud?
+
+**Yes.** The workflow uses `runs-on: ubuntu-latest`, which requests a
+GitHub-hosted Ubuntu runner: a temporary cloud virtual machine for this job.
+Your laptop does not execute the CI tests and does not need to stay on after
+GitHub receives the commit or manual run request.
+
+```text
+You push code or click Run workflow
+                 |
+           GitHub Actions
+                 |
+    Temporary Ubuntu cloud runner
+    - checks out your repository
+    - installs Node.js and npm packages
+    - installs Chromium and system dependencies
+    - starts Task Lab on 127.0.0.1:4173
+    - runs 11 tests with one worker
+    - uploads the HTML report
+                 |
+    Job ends; temporary runner is discarded
+```
+
+The app and Chromium run on the **same cloud runner**. `127.0.0.1` refers to
+that runner during CI; when you run locally, it refers to your own machine.
+Starting the app for tests does not publish it as a permanent public website.
+There is no deployed application URL or CD job in this project.
+
+### Option A: Start a run manually in GitHub
+
+1. Open [the Playwright workflow](https://github.com/hareeprasad09-ctrl/playwright-typescript-practice/actions/workflows/playwright.yml)
+   while signed in with access to run workflows.
+2. Select **Run workflow**.
+3. Select the **main** branch, then confirm **Run workflow**.
+4. Open the new run when it appears in the list.
+5. Open the **test** job to see installation, type checking, and test execution.
+
+The `workflow_dispatch` entry in the YAML enables this manual option. If the
+button is missing, confirm that you are signed in with repository write access
+and that the workflow exists on the default branch.
+
+### Option B: Run automatically after changing code
+
+Commit and push a code change to the repository. The `push` trigger starts CI.
+Creating or updating a pull request also starts a run through `pull_request`.
+You can edit a file in GitHub's web editor and commit it, or use a local clone:
+
+```sh
+# After editing a test in your authenticated local clone:
+git add tests/smoke.spec.ts
+git commit -m "Improve smoke coverage"
+git push
+```
+
+Only commit intended source changes. `node_modules`, reports, and test outputs
+are excluded by `.gitignore`. A commit message containing `[skip ci]` skips the
+push/pull-request workflow; the documentation-only result update used this to
+avoid repeating unchanged tests. You can still start a manual run when needed.
+
+### Read results and download the report
+
+1. Open [Actions](https://github.com/hareeprasad09-ctrl/playwright-typescript-practice/actions).
+2. Select the run for your intended branch and commit.
+3. Open the **test** job and expand **Run npm run test:regression**.
+4. Look for `Running 11 tests using 1 worker` and the pass/fail summary.
+5. Return to the run summary and download **playwright-report** under Artifacts.
+6. Extract the ZIP. From the project terminal, run:
+
+```sh
+npx playwright show-report "path/to/extracted/playwright-report"
+```
+
+Replace the quoted path with the real extracted report directory. On a failed
+test run, retained traces, screenshots, and videos may also be in the artifact.
+An installation or server-startup failure can occur before browser artifacts
+exist. Artifacts are retained for 14 days by this workflow.
+
+### What to do when CI is red
+
+Read the first failed step. A failure in `npm ci` is different from a failed
+assertion in the regression step. Inspect the logs and available report, fix the
+cause, commit the fix, and push it to start a new run. For a confirmed transient
+infrastructure issue, GitHub's run menu can rerun jobs; rerunning does not itself
+fix application or test code.
+
+### Interview answer: Where does your automation execute?
+
+> My tests run in GitHub Actions on a GitHub-hosted Ubuntu cloud runner. The
+> workflow checks out the repository, installs Node.js and Chromium, and starts
+> the practice app locally on that runner. Chromium executes the smoke and
+> regression suite with one worker, and the workflow uploads an HTML report.
+> Runs start on pushes, pull requests, or manually through workflow_dispatch.
+> This is CI automation; it does not deploy the app to a public environment.
+
+## Official learning references
 
 - [Playwright fixtures](https://playwright.dev/docs/test-fixtures)
 - [Page object models](https://playwright.dev/docs/pom)
@@ -322,6 +418,224 @@ risk. The hosted Chromium suite has passed; local execution still needs an envir
 
 The local failure was an environment setup issue, not a demonstrated application defect.
 The later hosted run executed the assertions successfully; no assertion fixes were needed.
+
+## Framework architecture to explain on a whiteboard
+
+```text
+GitHub push / pull request / manual run
+                    |
+          .github/workflows/playwright.yml
+                    |
+       install -> typecheck -> regression -> report
+                    |
+          playwright.config.ts
+          /                  \
+   local app server     Chromium / 1 worker
+                              |
+                  smoke and regression specs
+                              |
+                  fixtures/test.ts
+                  /             \
+           tasksPage        seededTasks
+                  \             /
+                     TasksPage
+                         |
+                browser page -> Task Lab
+```
+
+Sample explanation: “The workflow controls the CI steps. Playwright configuration
+controls browser execution and the local server. Tests request fixtures, fixtures
+provide page objects and data, and page objects interact with the application.
+Assertions in the tests verify the expected business behavior.”
+
+## Configuration values you should know
+
+| Setting | This project | Explain the reason |
+| --- | --- | --- |
+| `testDir` | `./tests` | Keeps test discovery scoped to the specs |
+| `workers` | `1` | Runs one test worker at a time, as required |
+| `fullyParallel` | `false` | Does not opt all tests into full parallelism |
+| `projects` | Chromium only | Defines the browser under test |
+| `timeout` | 30 seconds | Default timeout for an individual test |
+| `expect.timeout` | 5 seconds | Default timeout for retrying assertions |
+| `retries` | 0 locally, 1 in CI | Makes local failures visible; permits one CI retry |
+| `forbidOnly` | Enabled in CI | Rejects accidentally committed focused tests |
+| `baseURL` | `http://127.0.0.1:4173` | Allows relative navigation such as `goto('/')` |
+| `webServer.timeout` | 30 seconds | Limits waiting for the app server to become ready |
+| `reuseExistingServer` | `false` | Requires this run to start its configured app |
+| `trace` and `video` | `retain-on-failure` | Keeps these artifacts for failed attempts |
+| `screenshot` | `only-on-failure` | Captures screenshots when a test fails |
+| Reporters | List and HTML | Console progress plus a browsable report |
+
+These are different timeout settings: increasing an assertion timeout does not
+increase the overall test timeout. Investigate the failed condition before
+increasing a timeout.
+
+## Actual test coverage to discuss
+
+| Suite | Scenario | What it checks |
+| --- | --- | --- |
+| Smoke + regression | Open the app | Heading, empty list, zero active count |
+| Smoke + regression | Add a task | Task appears, input clears, active count increases |
+| Smoke + regression | Complete a task | Checkbox checked and active count decreases |
+| Regression | Filters | Active, Completed, and All show the expected rows |
+| Regression | Reload | Titles and completion state persist |
+| Regression | Reopen | A completed task becomes active again |
+| Regression | Delete | Only the selected task is removed; deletion survives reload |
+| Regression | Clear completed | Active task remains and clear button becomes disabled |
+| Regression | Whitespace | Blank input rejected; trimmed valid input accepted |
+| Regression | Length boundary | 81 characters rejected; 80 accepted |
+| Regression | Literal markup | Markup displayed as text rather than a `<b>` element |
+
+The markup test checks one rendering behavior. It is not a comprehensive security
+assessment. Likewise, 11 passing tests demonstrate these scenarios, not complete
+coverage of every possible behavior.
+
+## More interview questions: implementation and scenarios
+
+### 25. Which TypeScript concepts can you demonstrate in this code?
+
+- `class TasksPage` groups related state and behavior.
+- `Locator` and `Page` annotate the Playwright objects.
+- `constructor(readonly page: Page)` declares and initializes a property.
+- `readonly` prevents reassignment through that property; it does not make the browser immutable.
+- `base.extend<Fixtures>` supplies fixture types to the extended test object.
+- `'All' | 'Active' | 'Completed'` is a union of allowed filter strings.
+- `async` methods return promises; tests await their completion.
+
+### 26. What does `async ({ seededTasks: tasks })` mean?
+
+It destructures the fixture argument and renames `seededTasks` to the local
+variable `tasks`. It still requests the same fixture. The shorter local name
+does not create another fixture or another browser session.
+
+### 27. What is a locator strictness failure?
+
+An action that requires one element can fail if its locator matches multiple
+elements. In this project, two identical task titles could make `task(title)`
+ambiguous. I would inspect the matches and scope the locator using a meaningful
+row identifier. I would not automatically add `.first()` unless choosing the
+first item is actually the scenario's requirement.
+
+### 28. A test passes locally but fails in CI. What do you investigate?
+
+I compare the commit, dependency lockfile, browser installation, environment,
+test data, and server startup. Then I inspect the failing assertion and retained
+artifacts. Timing assumptions, shared data, and environment differences are
+possible causes; I need evidence to choose among them. Repeated retries or
+larger timeouts alone would not explain the failure.
+
+### 29. How would you add a new test?
+
+Choose a behavior and its expected result, use an existing fixture, and add a
+page-object action only if needed. Keep the test independent, tag it appropriately,
+and run type checking and the relevant suite. For example, an additional empty
+Completed-filter scenario could be:
+
+```ts
+// Proposed exercise; this example is not one of the current 11 tests.
+import { test, expect } from '../fixtures/test';
+
+test('completed filter is empty for an active task',
+  { tag: '@regression' }, async ({ tasksPage }) => {
+    await tasksPage.addTask('Prepare interview');
+    await tasksPage.filterBy('Completed');
+    await expect(tasksPage.rows).toHaveCount(0);
+    await expect(tasksPage.page.getByText('No tasks to show.', { exact: true }))
+      .toBeVisible();
+  });
+```
+
+### 30. Does this framework use data-driven testing?
+
+The current tests use inline data and one reusable seeded-data fixture. There is
+no external JSON, CSV, or Excel data provider. For many similar validation cases,
+I could parameterize tests from a typed array, give each case a unique name, and
+keep the data close to the behavior it describes.
+
+### 31. What would change for a real application with authentication?
+
+This app has no login. For a real application, I would design authorized test
+accounts, session setup, and isolated server-side test data. I would keep secrets
+out of the repository. That would be additional work, not a feature already
+implemented in this practice project.
+
+### 32. What is the difference between CI, continuous delivery, and deployment?
+
+CI validates changes through automated checks. Continuous delivery prepares
+validated changes for release, often with an approval step. Continuous deployment
+automatically releases validated changes. This project implements CI testing and
+reporting; it has no release or deployment job.
+
+### 33. Does a failed workflow prevent merging automatically?
+
+A failed workflow reports a failed check. Requiring that check before merging
+needs a repository ruleset or branch protection setting. No such merge requirement
+was configured as part of this project, so I would not claim that merges are blocked.
+
+### 34. What results can you prove?
+
+The linked GitHub Actions run executed 11 tests using one worker, and all passed
+in Chromium. The test execution took 5.5 seconds; the test job took 38 seconds,
+and the run summary showed 41 seconds overall. Type checking and report upload
+also succeeded. Those are measurements from one run, not performance guarantees.
+
+## Explain the challenge using STAR
+
+Use this as a factual project story; adapt the wording to your own involvement.
+
+- **Situation:** A small Playwright practice framework needed working automated checks.
+- **Task:** Run smoke and regression scenarios in Chromium with one worker and publish CI.
+- **Action:** Organize POM and fixtures, check TypeScript and test discovery, investigate
+  the local `spawn EPERM` setup failure, then publish the project and execute it on
+  a GitHub-hosted runner.
+- **Result:** All 11 tests passed in hosted CI and the report was uploaded. The local
+  process restriction remained documented; it was not presented as a fixed test defect.
+
+If asked about a flaky test you fixed, do not invent one. Explain how you would
+investigate flakiness and state that this verified run did not report retries.
+
+## Five-minute interview demo
+
+1. Open the repository and explain its purpose in 30 seconds.
+2. Show `TasksPage.ts`: point to one locator and the `addTask` action.
+3. Show `fixtures/test.ts`: explain setup, `use`, fixture dependency, and isolation.
+4. Show one smoke test and one boundary or persistence regression test.
+5. Show Chromium, `workers: 1`, and diagnostic settings in the configuration.
+6. Open the successful Actions run, expand `Run npm run test:regression`, and show
+   `Running 11 tests using 1 worker` and `11 passed`.
+7. Explain one limitation and the next improvement you would implement.
+
+To demonstrate locally on a machine that permits browser processes:
+
+```sh
+git clone https://github.com/hareeprasad09-ctrl/playwright-typescript-practice.git
+cd playwright-typescript-practice
+npm ci
+npx playwright install chromium
+npm run typecheck
+npm run test:smoke
+npm run test:regression
+npm run report
+```
+
+To inspect the CI report, open the successful run's summary and download the
+`playwright-report` artifact while it is retained. Extract it and open the report
+with `npx playwright show-report <path-to-extracted-playwright-report-folder>`.
+The workflow retains artifacts for 14 days, so an older run's download may expire.
+
+## Resume or portfolio wording
+
+After you can explain and demonstrate the implementation, adapt this description:
+
+> Playwright TypeScript practice project: organized browser tests using page
+> objects and typed fixtures; implemented smoke and regression coverage for a
+> task-list app; configured Chromium with one worker and GitHub Actions for
+> type checking, automated tests, and HTML reports. Verified all 11 tests passing
+> on a GitHub-hosted runner.
+
+Keep it under personal projects. Do not describe it as production experience,
+cross-browser coverage, API automation, or a deployment pipeline.
 
 ## Quick revision sheet
 
