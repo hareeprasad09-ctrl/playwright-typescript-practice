@@ -4,6 +4,11 @@ A self-contained Task Lab app with a page object model (POM), typed test fixture
 three smoke tests, eight additional regression tests, and GitHub Actions.
 All tests use Chromium and one worker. No account or external test website is required.
 
+[![Playwright tests](https://github.com/hareeprasad09-ctrl/playwright-typescript-practice/actions/workflows/playwright.yml/badge.svg)](https://github.com/hareeprasad09-ctrl/playwright-typescript-practice/actions/workflows/playwright.yml)
+
+Verified on GitHub Actions: **11 tests passed** with Chromium and one worker.
+[View the successful run](https://github.com/hareeprasad09-ctrl/playwright-typescript-practice/actions/runs/36317017160).
+
 ## Start here
 
 Install Node.js 22 or newer, open a terminal in this directory, then run:
@@ -71,8 +76,8 @@ Publish **the contents of this directory as the repository root**, including
 `.github/` and `package-lock.json`. The workflow runs on pushes, pull requests,
 and manual dispatch. It installs Chromium with Linux system dependencies, checks
 types, runs the full regression suite, and uploads reports for 14 days.
-The workflow is supplied for you to run after publishing; local verification
-does not constitute a hosted GitHub Actions run.
+The workflow is published and its first hosted run passed all 11 tests. This is
+continuous integration (CI); automatic deployment (CD) is not configured.
 
 ## References
 
@@ -95,8 +100,8 @@ only claim work and results you can personally explain or demonstrate.
 > fixtures. Each test uses an isolated browser context. The configuration runs
 > Chromium with one worker and captures diagnostics for failures. A GitHub
 > Actions workflow installs dependencies, checks TypeScript, runs regression,
-> and uploads reports. Locally, type checking and test discovery passed, but
-> browser execution was blocked by an environment process-permission error.
+> and uploads reports. The hosted GitHub Actions run passed all 11 tests with
+> Chromium and one worker. Local browser execution was blocked by a process-permission error.
 
 ### Read the files in this order
 
@@ -276,7 +281,7 @@ On a push, pull request, or manual dispatch, the workflow checks out the code,
 sets up Node.js 22, runs `npm ci`, installs Chromium and Linux dependencies,
 checks TypeScript, and runs regression. It uploads reports and test artifacts
 unless the job is cancelled. The one-worker Chromium configuration also applies
-in CI. A workflow file is configured here, but no hosted run has been verified.
+in CI. The first hosted run succeeded, including all 11 tests and report upload.
 
 ### 20. Why use `npm ci` in CI?
 
@@ -304,7 +309,7 @@ The project covers one small page and one browser. It has no real backend,
 authentication, API test suite, or cross-browser checks. The title-based row
 helper assumes unique titles. I would add duplicate-title coverage, improve row
 selection for that case, and introduce additional scenarios based on product
-risk. I would also complete browser execution and verify a hosted CI run.
+risk. The hosted Chromium suite has passed; local execution still needs an environment that permits browser child processes.
 
 ### 24. What challenge did you encounter, and how did you handle it?
 
@@ -312,11 +317,11 @@ risk. I would also complete browser execution and verify a hosted CI run.
 > After network access was granted, installation succeeded. Chromium installation
 > and test execution then failed with `spawn EPERM`, before any test bodies ran.
 > Type checking passed and Playwright discovered all 11 tests. I documented the
-> blocker and the commands to complete verification in an environment that permits
-> the required child processes. I do not report the browser tests as passing.
+> local blocker, then published the project to GitHub and verified its CI run.
+> All 11 browser tests passed on the GitHub-hosted runner.
 
-This is an environment setup issue, not a demonstrated application defect. Do not
-claim that test assertions were fixed or passed when they never executed.
+The local failure was an environment setup issue, not a demonstrated application defect.
+The later hosted run executed the assertions successfully; no assertion fixes were needed.
 
 ## Quick revision sheet
 
@@ -332,7 +337,7 @@ claim that test assertions were fixed or passed when they never executed.
 | Execution | Chromium only, one worker |
 | Diagnostics | HTML report plus retained failure artifacts |
 | CI | Install, type-check, run regression, upload artifacts |
-| Verification | Types and discovery passed; browser execution blocked |
+| Verification | Hosted CI passed all 11 tests; local browser execution blocked |
 
 Before an interview, practice explaining one test from fixture setup through
 assertion and teardown. Then make one small change yourself and explain why it
